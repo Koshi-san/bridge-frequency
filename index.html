@@ -60,8 +60,46 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 
 .lead { margin: 0; color: var(--muted); max-width: 62ch; }
 h2 { font-family: var(--font-display); font-size: 17px; margin: 0; text-wrap: balance; }
 
-.top { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
-@media (max-width: 820px) { .top { grid-template-columns: minmax(0, 1fr); } }
+[hidden] { display: none !important; }
+.top {
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start;
+  grid-template-areas: "readout measure" "readout panel";
+}
+.readout { grid-area: readout; }
+.measure { grid-area: measure; }
+.panel { grid-area: panel; }
+@media (max-width: 820px) {
+  .top { grid-template-columns: minmax(0, 1fr); grid-template-areas: "measure" "readout" "panel"; }
+}
+
+/* 計測カード */
+.measure { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: grid; gap: 12px; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; width: fit-content; max-width: 100%; }
+.seg label { position: relative; font-size: 14px; padding: 7px 14px; cursor: pointer; color: var(--muted); border-left: 1px solid var(--line); }
+.seg label:first-child { border-left: 0; }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg label:has(input:checked) { background: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.big-btn { font-size: 17px; padding: 14px 18px; width: 100%; }
+.progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.progress > div { height: 100%; width: 0; background: var(--accent); }
+.num.dim { color: var(--muted); }
+.clarity { font-size: 13px; color: var(--muted); }
+.clarity b { color: var(--fg); font-weight: 500; }
+.clarity b.low { color: var(--warn); }
+
+/* 記録した橋 */
+.history { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 10px; }
+.table-scroll { overflow-x: auto; }
+table.hist { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 520px; }
+table.hist th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.hist td { padding: 7px 8px 7px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.hist td.n { font-family: var(--font-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.hist td.memo { color: var(--muted); font-size: 12px; }
+table.hist button { font-size: 12px; padding: 3px 8px; }
+table.hist button.armed { border-color: var(--warn); color: var(--warn); }
+.empty { margin: 0; font-size: 13px; color: var(--muted); }
+.field.wide { grid-column: 1 / -1; }
 
 /* 計測器の表示窓 */
 .readout {
@@ -154,6 +192,7 @@ code { font-family: var(--font-data); font-size: .92em; }
         <span>解析長 <b id="dur">—</b> s</span>
         <span>分解能 <b id="df">—</b> Hz</span>
       </div>
+      <div class="clarity" id="clarity">ピークの明瞭さ <b>—</b></div>
       <div class="chip none" id="verdict">データを読み込むと判定します</div>
       <table class="peaks" id="peaks">
         <thead><tr><th>ピーク</th><th>振動数 Hz</th><th>周期 s</th><th style="width:34%">相対振幅</th></tr></thead>
@@ -161,15 +200,25 @@ code { font-family: var(--font-data); font-size: .92em; }
       </table>
     </section>
 
+    <section class="measure">
+      <div class="group-title">このスマホで計測</div>
+      <div class="seg" role="radiogroup" aria-label="記録時間">
+        <label><input type="radio" name="dur" id="dur30" value="30">30 秒</label>
+        <label><input type="radio" name="dur" id="dur60" value="60" checked>60 秒</label>
+        <label><input type="radio" name="dur" id="dur120" value="120">120 秒</label>
+      </div>
+      <button id="recBtn" class="primary big-btn" type="button">計測をはじめる</button>
+      <div class="progress" id="progress" hidden><div id="progressBar"></div></div>
+      <p class="msg" id="msg">押してから 3 秒以内に、スマホを画面を上にして床に置きます。時間が来たら振動と音で知らせます。</p>
+    </section>
+
     <section class="panel">
       <div class="group">
-        <div class="group-title">データ</div>
+        <div class="group-title">ほかのデータ</div>
         <div class="btns">
-          <label class="filebtn primary">CSV を読み込む<input type="file" id="file" accept=".csv,.txt,.tsv,text/csv,text/plain"></label>
+          <label class="filebtn">CSV を読み込む<input type="file" id="file" accept=".csv,.txt,.tsv,text/csv,text/plain"></label>
           <button id="sampleBtn" type="button">サンプルを読み込む</button>
-          <button id="recBtn" type="button">このスマホで計測</button>
         </div>
-        <p class="msg" id="msg"></p>
       </div>
       <div class="group">
         <div class="group-title">解析の設定</div>
@@ -179,9 +228,21 @@ code { font-family: var(--font-data); font-size: .92em; }
           <label class="field">区間 終了 s<input id="t1" type="number" step="0.5" min="0" inputmode="decimal"></label>
           <label class="field">探索 下限 Hz<input id="fmin" type="number" step="0.1" min="0" value="0.8" inputmode="decimal"></label>
           <label class="field">探索 上限 Hz<input id="fmax" type="number" step="0.5" min="1" value="20" inputmode="decimal"></label>
-          <label class="field">支間長 L m（任意）<input id="span" type="number" step="1" min="1" placeholder="例 30" inputmode="decimal"></label>
         </div>
-        <div class="btns"><button id="copyBtn" type="button" disabled>結果をコピー</button></div>
+      </div>
+      <div class="group">
+        <div class="group-title">記録を残す</div>
+        <div class="fields">
+          <label class="field">橋の名前<input id="bname" type="text" placeholder="例 〇〇歩道橋" autocomplete="off"></label>
+          <label class="field">支間長 L m（任意）<input id="span" type="number" step="1" min="1" placeholder="例 30" inputmode="decimal"></label>
+          <label class="field wide">メモ<input id="bmemo" type="text" placeholder="例 支間中央、自転車が通過" autocomplete="off"></label>
+        </div>
+        <div class="btns">
+          <button id="saveBtn" type="button" class="primary" disabled>記録を保存</button>
+          <button id="csvBtn" type="button" disabled>生データを CSV で保存</button>
+          <button id="copyBtn" type="button" disabled>結果をコピー</button>
+        </div>
+        <p class="msg" id="saveMsg"></p>
       </div>
     </section>
   </div>
@@ -206,14 +267,28 @@ code { font-family: var(--font-data); font-size: .92em; }
     <div class="canvas-box tall"><canvas id="specChart" aria-label="振幅スペクトルのグラフ" role="img"></canvas></div>
   </section>
 
+  <section class="history">
+    <div class="chart-head">
+      <h2>記録した橋</h2>
+      <span class="legend">このスマホのブラウザの中だけに保存されます</span>
+    </div>
+    <div class="table-scroll" id="histWrap" hidden>
+      <table class="hist">
+        <thead><tr><th>日時</th><th>橋</th><th>1次 Hz</th><th>明瞭さ</th><th>L m</th><th>f×L</th><th>メモ</th><th></th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table>
+    </div>
+    <p class="empty" id="histEmpty">まだ記録はありません。計測したあと「記録を保存」を押すと、ここに並びます。f×L は経験式 f ≈ 100/L なら 100 前後になります。</p>
+  </section>
+
   <section class="notes">
     <div>
       <h2>測り方</h2>
       <ol>
-        <li>歩道橋の床版の上、支間の中央付近で「このスマホで計測」を押し、3 秒のカウントダウン中にスマホを<b>画面を上にして平置き</b>する。手すりより床のほうが鉛直の揺れを素直に拾えます。</li>
-        <li>そっと手を離して、30〜60 秒そのまま。人や車が通ると橋が揺れて、ピークがはっきりします。計測中は画面を点けたままにします。</li>
-        <li>スマホを拾って「計測を止める」を押す。最初と最後の 2 秒は自動で解析区間から外します。</li>
-        <li>ノイズが残っていたら「区間 開始／終了」で外す。</li>
+        <li>記録時間を選び、歩道橋の床版の上、支間の中央付近で「計測をはじめる」を押す。</li>
+        <li>3 秒のカウントダウン中にスマホを<b>画面を上にして平置き</b>し、そっと手を離す。手すりより床のほうが鉛直の揺れを素直に拾えます。</li>
+        <li>時間が来ると振動と音で知らせて自動で止まります。人や車が通るとピークがはっきりします。最初の 2 秒は自動で解析から外します。</li>
+        <li>「ピークの明瞭さ」が不明瞭なら、人が通るタイミングで測り直す。よければ橋の名前を付けて保存する。</li>
       </ol>
       <p class="small">スマホを平置きしたときは z 軸が鉛直方向です。橋軸直角（横揺れ）を見たいときは x か y を選びます。phyphox の「加速度（g なし）」で記録した CSV も読み込めます。</p>
     </div>
@@ -390,6 +465,16 @@ code { font-family: var(--font-data); font-size: .92em; }
     });
   }
 
+  // ピークが探索範囲のスペクトルの中央値の何倍か。叩く・踏むなど広帯域の揺れだと小さくなる
+  function clarityOf(spec, p, fmin, fmax) {
+    if (!p) return null;
+    const v = [];
+    for (let k = 0; k < spec.f.length; k++) if (spec.f[k] >= fmin && spec.f[k] <= fmax) v.push(spec.a[k]);
+    v.sort((a, b) => a - b);
+    const med = v[v.length >> 1] || 1e-12, ratio = spec.a[p.k] / med;
+    return { ratio, level: ratio >= 8 ? "はっきり" : ratio >= 4 ? "ややはっきり" : "不明瞭", low: ratio < 4 };
+  }
+
   function num(id, fallback) { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : fallback; }
 
   function analyze() {
@@ -408,13 +493,14 @@ code { font-family: var(--font-data); font-size: .92em; }
       const fmin = num("#fmin", 0.8), fmax = Math.min(num("#fmax", 20), r.fs / 2);
       S.range = [fmin, fmax];
       S.peaks = findPeaks(spec.f, spec.a, fmin, fmax, spec.res);
+      S.clarity = clarityOf(spec, S.peaks[0], fmin, fmax);
       S.axisName = col.name; S.dur = b - a;
       renderReadout();
       if (r.y.length / r.fs < 20) { msg.textContent = "解析長が 20 秒未満です。30 秒以上あると分解能が上がります。"; }
       else msg.textContent = "";
     } catch (e) {
       msg.className = "msg err"; msg.textContent = e.message;
-      S.spec = null; S.peaks = []; renderReadout();
+      S.spec = null; S.peaks = []; S.clarity = null; renderReadout();
     }
     drawAll();
   }
@@ -426,8 +512,15 @@ code { font-family: var(--font-data); font-size: .92em; }
     $("#fs").textContent = S.fs ? S.fs : "—";
     $("#dur").textContent = S.dur ? S.dur.toFixed(1) : "—";
     $("#df").textContent = S.spec ? S.spec.res.toFixed(3) : "—";
+    const c = S.clarity;
+    $("#f1").classList.toggle("dim", !!(c && c.low));
+    $("#clarity").innerHTML = c
+      ? `ピークの明瞭さ <b class="${c.low ? "low" : ""}">${c.level}</b>（周囲の ${c.ratio.toFixed(1)} 倍）`
+      : "ピークの明瞭さ <b>—</b>";
+    $("#saveBtn").disabled = !p; $("#csvBtn").disabled = !S.t;
     const v = $("#verdict");
     if (!p) { v.className = "chip none"; v.textContent = S.t ? "探索範囲にピークが見つかりません" : "データを読み込むと判定します"; }
+    else if (c && c.low) { v.className = "chip none"; v.textContent = "ピークが不明瞭です。人や車が通るタイミングで測り直してください"; }
     else if (p.f >= WALK_LO && p.f <= WALK_HI) { v.className = "chip warn"; v.textContent = "歩行の振動数帯（1.5〜2.3 Hz）に入っています。歩くと揺れを感じやすい橋かもしれません"; }
     else { v.className = "chip ok"; v.textContent = p.f < WALK_LO ? "歩行の振動数帯より低い側です" : "歩行の振動数帯（1.5〜2.3 Hz）の外、高い側です"; }
     const tb = $("#peaks tbody"); tb.innerHTML = "";
@@ -589,9 +682,21 @@ code { font-family: var(--font-data); font-size: .92em; }
 
   // ---------- 直接計測（センサーを使える環境のみ） ----------
   let rec = null;
+  const durSec = () => +((document.querySelector('input[name="dur"]:checked') || {}).value || 60);
+  function beep(ac) {
+    try {
+      [0, 0.28].forEach(off => {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.frequency.value = 880; o.connect(g); g.connect(ac.destination);
+        const t = ac.currentTime + off;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+        o.start(t); o.stop(t + 0.22);
+      });
+    } catch (e) { /* 音は任意 */ }
+  }
   async function toggleRec() {
     const btn = $("#recBtn"), msg = $("#msg");
-    if (rec) return stopRec(false);
+    if (rec) return stopRec("manual");
     msg.className = "msg";
     try {
       if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
@@ -601,15 +706,23 @@ code { font-family: var(--font-data); font-size: .92em; }
     } catch (e) {
       msg.className = "msg err"; msg.textContent = "センサーの使用が許可されませんでした。phyphox で記録した CSV を読み込んでください。"; return;
     }
-    rec = { t: [], x: [], y: [], z: [], start: performance.now() + 3000, lock: null };
+    // 音はボタンを押した時点で準備しておく（あとから鳴らせるように）
+    let audio = null;
+    try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) { audio = new AC(); if (audio.resume) audio.resume(); } } catch (e) { audio = null; }
+    rec = { t: [], x: [], y: [], z: [], start: performance.now() + 3000, dur: durSec(), lock: null, audio };
     try { if (navigator.wakeLock) rec.lock = await navigator.wakeLock.request("screen"); } catch (e) { /* 画面の常時点灯は任意 */ }
     window.addEventListener("devicemotion", onMotion);
-    btn.textContent = "計測を止める";
+    btn.textContent = "途中で止める"; btn.classList.remove("primary");
+    document.querySelectorAll('input[name="dur"]').forEach(i => { i.disabled = true; });
+    $("#progress").hidden = false; $("#progressBar").style.width = "0%";
     rec.timer = setInterval(() => {
+      if (!rec) return;
       const el = (performance.now() - rec.start) / 1000;
-      if (el < 0) { msg.innerHTML = `<span class="rec">${Math.ceil(-el)} 秒後に記録を始めます。スマホを平らに置いてください</span>`; return; }
-      if (el > 2 && rec.t.length === 0) { stopRec(true); return; }
-      msg.innerHTML = `<span class="rec">● 計測中 ${el.toFixed(1)} s ／ ${rec.t.length} 点</span>`;
+      if (el < 0) { msg.innerHTML = `<span class="rec">${Math.ceil(-el)} 秒後に記録を始めます。スマホを平らに置いて手を離してください</span>`; return; }
+      if (el > 2 && rec.t.length === 0) { stopRec("nodata"); return; }
+      $("#progressBar").style.width = Math.min(100, el / rec.dur * 100) + "%";
+      if (el >= rec.dur) { stopRec("auto"); return; }
+      msg.innerHTML = `<span class="rec">● 計測中 ${Math.floor(el)} / ${rec.dur} 秒（${rec.t.length} 点）。スマホに触れないでください</span>`;
     }, 200);
   }
   function onMotion(e) {
@@ -618,20 +731,29 @@ code { font-family: var(--font-data); font-size: .92em; }
     if (!a || a.z == null) return;
     rec.t.push((e.timeStamp || performance.now()) / 1000); rec.x.push(a.x || 0); rec.y.push(a.y || 0); rec.z.push(a.z || 0);
   }
-  function stopRec(noData) {
+  function stopRec(reason) {
     window.removeEventListener("devicemotion", onMotion);
     clearInterval(rec.timer);
     if (rec.lock) rec.lock.release().catch(() => {});
     const r = rec; rec = null;
-    $("#recBtn").textContent = "このスマホで計測";
-    const msg = $("#msg");
-    if (noData) { msg.className = "msg err"; msg.textContent = "この表示環境ではセンサーの値が届きません。phyphox で記録した CSV を読み込んでください。"; return; }
+    if (reason === "auto") {
+      if (r.audio) beep(r.audio);
+      try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) { /* 振動は任意 */ }
+    }
+    if (r.audio) setTimeout(() => { r.audio.close().catch(() => {}); }, 1000);
+    const btn = $("#recBtn"); btn.textContent = "計測をはじめる"; btn.classList.add("primary");
+    document.querySelectorAll('input[name="dur"]').forEach(i => { i.disabled = false; });
+    $("#progress").hidden = true;
+    const msg = $("#msg"); msg.className = "msg";
+    if (reason === "nodata") { msg.className = "msg err"; msg.textContent = "この表示環境ではセンサーの値が届きません。phyphox で記録した CSV を読み込んでください。"; return; }
     if (r.t.length < 64) { msg.className = "msg err"; msg.textContent = r.t.length ? "記録が短すぎます。30 秒以上計測してください。" : "記録が始まる前に止まりました。"; return; }
     const now = new Date(), hh = String(now.getHours()).padStart(2, "0"), mm = String(now.getMinutes()).padStart(2, "0");
     setData(r.t, [{ name: "x", data: r.x }, { name: "y", data: r.y }, { name: "z", data: r.z }], `このスマホで計測（${hh}:${mm}）`, false);
-    // 置く・拾う動きを避けるため、最初と最後の 2 秒を外す
-    const T = S.t[S.t.length - 1];
-    if (T > 10) { $("#t0").value = 2; $("#t1").value = +(T - 2).toFixed(1); analyze(); }
+    // 置く動きを避けて最初の 2 秒を外す。手で止めたときは拾う動きも避けて最後の 2 秒も外す
+    const T = S.t[S.t.length - 1], tail = reason === "auto" ? 0.3 : 2;
+    if (T > 10) { $("#t0").value = 2; $("#t1").value = +(T - tail).toFixed(1); analyze(); }
+    if (!msg.textContent) msg.textContent = reason === "auto" ? "計測が終わりました。結果を確認してください。" : "計測を止めました。";
+    document.querySelector(".readout").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   // ---------- イベント ----------
@@ -651,16 +773,79 @@ code { font-family: var(--font-data); font-size: .92em; }
   $("#span").addEventListener("input", drawSpec);
   $("#copyBtn").addEventListener("click", async () => {
     const p = S.peaks; if (!p.length) return;
+    const span = parseFloat($("#span").value);
     const lines = [
+      `橋: ${$("#bname").value.trim() || "（名前なし）"}${Number.isFinite(span) ? `／支間長 ${span} m` : ""}`,
       `データ: ${S.label}${S.isSample ? "（合成データの例）" : ""}`,
       `軸: ${S.axisName} / 区間 ${S.sel[0].toFixed(1)}–${S.sel[1].toFixed(1)} s / fs ${S.fs} Hz / 分解能 ${S.spec.res.toFixed(3)} Hz`,
-      ...p.map((pk, i) => `ピーク${i + 1}: ${pk.f.toFixed(2)} Hz（周期 ${(1 / pk.f).toFixed(3)} s、相対振幅 ${pk.rel.toFixed(2)}）`)
+      ...p.map((pk, i) => `ピーク${i + 1}: ${pk.f.toFixed(2)} Hz（周期 ${(1 / pk.f).toFixed(3)} s、相対振幅 ${pk.rel.toFixed(2)}）`),
+      `ピークの明瞭さ: ${S.clarity ? `${S.clarity.level}（周囲の ${S.clarity.ratio.toFixed(1)} 倍）` : "—"}`
     ];
     const text = lines.join("\n"), btn = $("#copyBtn");
     try { await navigator.clipboard.writeText(text); btn.textContent = "コピーしました"; }
-    catch (e) { $("#msg").className = "msg"; $("#msg").textContent = text; btn.textContent = "下に表示しました"; }
+    catch (e) { $("#saveMsg").className = "msg"; $("#saveMsg").textContent = text; btn.textContent = "下に表示しました"; }
     setTimeout(() => { btn.textContent = "結果をコピー"; }, 1800);
   });
+
+  // ---------- 記録（このブラウザの中だけ） ----------
+  const KEY = "bridge-frequency.history.v1";
+  const loadHist = () => { try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { return []; } };
+  const saveHist = h => { try { localStorage.setItem(KEY, JSON.stringify(h)); return true; } catch (e) { return false; } };
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const pad2 = n => String(n).padStart(2, "0");
+  function renderHist() {
+    const h = loadHist(), body = $("#histBody");
+    body.innerHTML = "";
+    $("#histWrap").hidden = !h.length; $("#histEmpty").hidden = !!h.length;
+    h.slice().reverse().forEach(r => {
+      const d = new Date(r.at), when = `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td class="n">${when}</td><td>${esc(r.name || "（名前なし）")}${r.sample ? ' <span class="tag">例</span>' : ""}</td>`
+        + `<td class="n">${r.f1.toFixed(2)}</td><td>${esc(r.clarity || "—")}</td><td class="n">${r.span || "—"}</td>`
+        + `<td class="n">${r.span ? (r.f1 * r.span).toFixed(0) : "—"}</td><td class="memo">${esc(r.memo || "")}</td><td></td>`;
+      const del = document.createElement("button");
+      del.type = "button"; del.textContent = "削除";
+      del.addEventListener("click", () => {
+        if (!del.classList.contains("armed")) {
+          del.classList.add("armed"); del.textContent = "もう一度押すと削除";
+          setTimeout(() => { del.classList.remove("armed"); del.textContent = "削除"; }, 3000);
+          return;
+        }
+        saveHist(loadHist().filter(x => x.id !== r.id)); renderHist();
+      });
+      tr.lastElementChild.appendChild(del);
+      body.appendChild(tr);
+    });
+  }
+  $("#saveBtn").addEventListener("click", () => {
+    const p = S.peaks[0]; if (!p) return;
+    const span = parseFloat($("#span").value);
+    const entry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), at: Date.now(),
+      name: $("#bname").value.trim(), span: Number.isFinite(span) && span > 0 ? span : null, memo: $("#bmemo").value.trim(),
+      f1: p.f, peaks: S.peaks.map(x => +x.f.toFixed(3)),
+      clarity: S.clarity ? S.clarity.level : null, ratio: S.clarity ? +S.clarity.ratio.toFixed(1) : null,
+      fs: S.fs, dur: +S.dur.toFixed(1), axis: S.axisName, source: S.label, sample: S.isSample
+    };
+    const h = loadHist(); h.push(entry);
+    const m = $("#saveMsg");
+    if (saveHist(h)) { m.className = "msg"; m.textContent = `保存しました（${h.length} 件目）。下の「記録した橋」に並びます。`; renderHist(); }
+    else { m.className = "msg err"; m.textContent = "このブラウザでは保存できませんでした。シークレットモードで開いていないか確認してください。"; }
+  });
+  $("#csvBtn").addEventListener("click", () => {
+    if (!S.t) return;
+    const head = ["time_s", ...S.cols.map(c => c.name)];
+    const rows = [head.map(h => `"${h.replace(/"/g, '""')}"`).join(",")];
+    for (let i = 0; i < S.t.length; i++) rows.push([S.t[i].toFixed(4), ...S.cols.map(c => c.data[i])].join(","));
+    const blob = new Blob(["﻿" + rows.join("\n")], { type: "text/csv" });
+    const d = new Date(), stamp = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}`;
+    const base = ($("#bname").value.trim() || "bridge").replace(/[\\/:*?"<>|\s]+/g, "_");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `${base}_${stamp}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  renderHist();
 
   let rt; const redraw = () => { clearTimeout(rt); rt = setTimeout(drawAll, 60); };
   new ResizeObserver(redraw).observe(document.querySelector(".wrap"));
